@@ -26,12 +26,79 @@ import { Combobox } from '@/components/combobox'
 import { useAuth } from '@/components/auth-provider'
 import { QK, useClients, useProfiles, useTaskMasters } from '@/hooks/use-app-data'
 import { friendlyError, supabase } from '@/lib/supabase'
-import { DEFAULT_FINANCIAL_YEAR, FINANCIAL_YEARS, PRIORITIES } from '@/lib/constants'
+import {
+  DEFAULT_FINANCIAL_YEAR,
+  FINANCIAL_YEARS,
+  GENERATABLE_RECURRENCES,
+  PRIORITIES,
+} from '@/lib/constants'
 import { todayISO } from '@/lib/utils'
-import type { TaskPriority } from '@/types/db'
+import type { Recurrence, TaskPriority } from '@/types/db'
+
+const MONTHS3 = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/**
+ * The current cycle for a cadence — period label, FY and due date — matching
+ * the database generator's labels EXACTLY, so the task created here today is
+ * the same instance the 8:00 IST job would create, and tomorrow's run skips
+ * it instead of duplicating it.
+ */
+function currentCycle(rec: Recurrence): { period: string; fy: string; due: string } {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = today.getMonth() // 0-11
+  const fyStart = m >= 3 ? y : y - 1
+  const fy = `${fyStart}-${String((fyStart + 1) % 100).padStart(2, '0')}`
+
+  switch (rec) {
+    case 'Daily':
+      return {
+        period: `${String(today.getDate()).padStart(2, '0')}-${MONTHS3[m]}-${y}`,
+        fy,
+        due: iso(today),
+      }
+    case 'Weekly': {
+      const monday = new Date(today)
+      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      return {
+        period: `Wk-${String(monday.getDate()).padStart(2, '0')}-${MONTHS3[monday.getMonth()]}-${monday.getFullYear()}`,
+        fy,
+        due: iso(sunday),
+      }
+    }
+    case 'Monthly':
+      return {
+        period: `${MONTHS3[m]}-${y}`,
+        fy,
+        due: iso(new Date(y, m + 1, 0)),
+      }
+    case 'Quarterly': {
+      const q = Math.floor(((m - 3 + 12) % 12) / 3) + 1
+      const endMonth = [5, 8, 11, 2][q - 1]
+      const endYear = q === 4 ? fyStart + 1 : fyStart
+      return { period: `Q${q}-${fy}`, fy, due: iso(new Date(endYear, endMonth + 1, 0)) }
+    }
+    case 'Half-Yearly': {
+      const h = m >= 3 && m <= 8 ? 1 : 2
+      return {
+        period: `H${h}-${fy}`,
+        fy,
+        due: h === 1 ? iso(new Date(fyStart, 8, 30)) : iso(new Date(fyStart + 1, 2, 31)),
+      }
+    }
+    default:
+      return { period: `FY-${fy}`, fy, due: iso(new Date(fyStart + 1, 2, 31)) }
+  }
+}
 
 interface Draft {
   source: 'master' | 'adhoc'
+  repeat: 'one' | Recurrence
   task_master_id: string | null
   title: string
   description: string
@@ -46,6 +113,7 @@ interface Draft {
 
 const EMPTY: Draft = {
   source: 'master',
+  repeat: 'one',
   task_master_id: null,
   title: '',
   description: '',
@@ -118,6 +186,40 @@ export function SelfTaskDialog({
       const uid = session?.user.id
       if (!uid) throw new Error('Not signed in.')
 
+      if (draft.source === 'master' && draft.repeat !== 'one') {
+        // 1. The standing schedule — this is what makes it repeat.
+        const { error: scheduleError } = await supabase.from('recurring_assignments').insert({
+          task_master_id: draft.task_master_id,
+          client_id: draft.client_id,
+          assigned_to: effectiveAssignee ?? uid,
+          recurrence: draft.repeat,
+          custom_title: draft.title.trim() || null,
+          notes: draft.description.trim() || null,
+          created_by: uid,
+        })
+        if (scheduleError) throw scheduleError
+
+        // 2. The current cycle's task, immediately, using the generator's own
+        // labels so tomorrow's 8 AM run skips it rather than duplicating it.
+        const cycle = currentCycle(draft.repeat)
+        const { error: firstError } = await supabase.from('tasks').insert({
+          title: draft.title.trim(),
+          task_master_id: draft.task_master_id,
+          is_adhoc: false,
+          client_id: draft.client_id,
+          assigned_to: effectiveAssignee ?? uid,
+          assigned_by: uid,
+          priority: draft.priority,
+          description: draft.description.trim() || null,
+          financial_year: cycle.fy,
+          period: cycle.period,
+          start_date: todayISO(),
+          due_date: cycle.due,
+        })
+        if (firstError) throw firstError
+        return
+      }
+
       const { error } = await supabase.from('tasks').insert({
         title: draft.title.trim(),
         task_master_id: draft.source === 'master' ? draft.task_master_id : null,
@@ -135,14 +237,18 @@ export function SelfTaskDialog({
       if (error) throw error
     },
     onSuccess: () => {
+      const repeated = draft.source === 'master' && draft.repeat !== 'one'
       void queryClient.invalidateQueries({ queryKey: QK.tasks })
+      if (repeated) void queryClient.invalidateQueries({ queryKey: QK.recurring })
       setDraft(EMPTY)
       setErrors({})
       onOpenChange(false)
       toast.success(
-        effectiveAssignee && effectiveAssignee !== session?.user.id
-          ? 'Task assigned'
-          : 'Task added to your list',
+        repeated
+          ? `Repeats ${draft.repeat.toLowerCase()} — this cycle's task is created; the next appears automatically at 8:00 IST`
+          : effectiveAssignee && effectiveAssignee !== session?.user.id
+            ? 'Task assigned'
+            : 'Task added to your list',
       )
     },
     onError: (error) => toast.error(friendlyError(error)),
@@ -189,8 +295,9 @@ export function SelfTaskDialog({
         <DialogHeader>
           <DialogTitle>Add Task</DialogTitle>
           <DialogDescription>
-            Starts at stage 01. You ({profile?.full_name ?? 'you'}) are recorded as the assigner,
-            and any date change later is logged in the task's history.
+            Starts at stage 01, with you ({profile?.full_name ?? 'you'}) recorded as the assigner.
+            One-time by default — set <strong>Repeats</strong> below and it becomes automatic:
+            this cycle's task now, the next each morning at 8:00 IST.
           </DialogDescription>
         </DialogHeader>
 
@@ -202,6 +309,7 @@ export function SelfTaskDialog({
                 ...prev,
                 source: value as 'master' | 'adhoc',
                 task_master_id: value === 'adhoc' ? null : prev.task_master_id,
+                repeat: value === 'adhoc' ? 'one' : prev.repeat,
               }))
             }
           >
@@ -242,6 +350,34 @@ export function SelfTaskDialog({
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {draft.source === 'master' ? (
+              <Field
+                label="Repeats"
+                hint={
+                  draft.repeat === 'one'
+                    ? 'One-time by default. Pick a cycle to make it automatic.'
+                    : 'Creates a standing schedule — manage it later under Recurring.'
+                }
+                className="sm:col-span-2"
+              >
+                <Select
+                  value={draft.repeat}
+                  onValueChange={(value) => set('repeat', value as Draft['repeat'])}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="one">Does not repeat (single task)</SelectItem>
+                    {GENERATABLE_RECURRENCES.map((recurrence) => (
+                      <SelectItem key={recurrence} value={recurrence}>
+                        {recurrence}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
             <Field label="Assign To" hint="Yourself, or a colleague.">
               <Combobox
                 options={assigneeOptions}
@@ -277,6 +413,8 @@ export function SelfTaskDialog({
                 </SelectContent>
               </Select>
             </Field>
+            {draft.repeat === 'one' ? (
+              <>
             <Field label="Financial Year">
               <Select
                 value={draft.financial_year}
@@ -317,6 +455,8 @@ export function SelfTaskDialog({
                 onChange={(e) => set('due_date', e.target.value)}
               />
             </Field>
+              </>
+            ) : null}
           </div>
 
           <DialogFooter>

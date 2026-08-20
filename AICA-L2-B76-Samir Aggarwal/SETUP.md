@@ -45,6 +45,10 @@ SQL Editor → New query → paste **the entire file** → Run → wait for
 | 14 | `12-gstin-sync.sql` | Client-master GSTIN ⇄ registrations sync + backfill | |
 | 15 | `13-visibility-leads.sql` | When tasks appear: monthly 10d, annual 60d before due | |
 | 16 | `14-latest-comment.sql` | Latest comment on every task row (board cards) | |
+| 17 | `15-schedule-notes.sql` | A schedule's notes become each generated task's description | |
+| 18 | `16-schedule-custom-title.sql` | Custom task name per schedule ("NCPL Daily stock entry") | |
+| 19 | `17-annual-period-fix.sql` | Annual compliances generate the season due NOW (prev FY) | |
+| 20 | `18-open-schedules.sql` | Staff may create their own repeating schedules | |
 
 Verify the result:
 

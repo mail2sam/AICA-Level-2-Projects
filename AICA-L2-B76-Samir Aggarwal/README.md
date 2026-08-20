@@ -70,11 +70,22 @@ Event-driven compliances (DIR-12, CHG-1, PAS-3…) are deliberately *not*
 generated — they arise from events, so they are created manually from the task
 catalogue when the event happens.
 
+The rule catalogue itself is managed inside the app (an admin-only **Compliance
+Rules** screen): a new rule or a due-date change — CBDT extends a deadline
+every year — is a form that speaks CA language ("monthly, day of following
+month"; "fixed date per quarter") and composes the engine fields, not a SQL
+file. Annual rules generate the filing season actually running (the previous
+FY's return, due this year), not a far-future instance.
+
 ### Recurring internal work
 The same morning job generates the firm's own recurring work (bookkeeping,
 MIS, billing) from standing instructions: pick a job, a client, a person and a
 periodicity (daily / weekly / monthly / quarterly / half-yearly / annual) —
-one instance per cycle appears by itself.
+one instance per cycle appears by itself. A repeating job can be created
+straight from the Add Task dialog ("Repeats: daily…"), which builds the
+standing schedule and this cycle's first task in one save; each schedule
+carries its own display name ("NCPL Daily stock entry") and a checklist that
+lands on every generated task.
 
 ### Open assignment with an audit trail
 Anyone can create and assign tasks — to themselves or a colleague — because a
@@ -137,7 +148,7 @@ src/                 React application
   hooks/             data layer (TanStack Query over PostgREST)
   lib/               supabase client, constants, helpers
   types/db.ts        hand-written mirror of the SQL schema
-supabase/            the entire backend: 16 SQL files, run in order (see SETUP.md)
+supabase/            the entire backend: 20 SQL files, run in order (see SETUP.md)
 server.js            production server for Railway
 scripts/check-env.js fails the build loudly if Supabase config is missing
 public/              favicon + the client bulk-upload Excel template
@@ -156,5 +167,5 @@ proprietary practice-management licence.
 
 ## Getting started
 
-Follow **[SETUP.md](SETUP.md)** — first-time Supabase setup (16 SQL files in
+Follow **[SETUP.md](SETUP.md)** — first-time Supabase setup (20 SQL files in
 order), authentication settings, local development, and Railway deployment.

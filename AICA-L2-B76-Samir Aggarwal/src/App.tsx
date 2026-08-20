@@ -13,6 +13,7 @@ const BoardPage = lazy(() => import('@/pages/board'))
 const NeedHelpPage = lazy(() => import('@/pages/need-help'))
 const ClientStatusPage = lazy(() => import('@/pages/client-status'))
 const RecurringPage = lazy(() => import('@/pages/recurring'))
+const ComplianceRulesPage = lazy(() => import('@/pages/compliance-rules'))
 const EmployeesPage = lazy(() => import('@/pages/employees'))
 const ClientsPage = lazy(() => import('@/pages/clients'))
 const TaskMasterPage = lazy(() => import('@/pages/task-master'))
@@ -123,6 +124,16 @@ export default function App() {
           <AdminRoute>
             <Shell>
               <RecurringPage />
+            </Shell>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/compliance-rules"
+        element={
+          <AdminRoute>
+            <Shell>
+              <ComplianceRulesPage />
             </Shell>
           </AdminRoute>
         }

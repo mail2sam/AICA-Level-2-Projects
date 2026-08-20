@@ -8,6 +8,7 @@ import {
   ListChecks,
   LogOut,
   Repeat,
+  Scale,
   TriangleAlert,
   Users,
   UserCircle,
@@ -54,6 +55,7 @@ const ADMIN_MASTERS: NavItem[] = [
   { to: '/clients', label: 'Clients', icon: Building2 },
   { to: '/employees', label: 'Employees', icon: Users },
   { to: '/task-master', label: 'Task Master', icon: ListChecks },
+  { to: '/compliance-rules', label: 'Compliance Rules', icon: Scale },
   { to: '/recurring', label: 'Recurring', icon: Repeat },
 ]
 

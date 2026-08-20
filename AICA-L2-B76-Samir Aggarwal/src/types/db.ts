@@ -277,6 +277,8 @@ export interface RecurringAssignment {
   assigned_to: string | null
   /** The schedule's own cadence. Null falls back to the master's recurrence. */
   recurrence: Recurrence | null
+  /** Custom name for generated tasks, e.g. "NCPL Daily stock entry". Null = master's name. */
+  custom_title: string | null
   is_active: boolean
   notes: string | null
   created_by: string | null

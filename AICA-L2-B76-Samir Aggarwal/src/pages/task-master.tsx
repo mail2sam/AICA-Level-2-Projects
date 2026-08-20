@@ -373,7 +373,11 @@ export default function TaskMasterPage() {
                 onChange={(val) => set('category', val)}
               />
             </Field>
-            <Field label="Recurrence" required>
+            <Field
+              label="Recurrence"
+              hint="A default label only — actual repetition is set per client/schedule (Recurring screen, or 'Repeats' in Add Task)."
+              required
+            >
               <Select
                 value={draft.recurrence}
                 onValueChange={(val) => set('recurrence', val as Recurrence)}

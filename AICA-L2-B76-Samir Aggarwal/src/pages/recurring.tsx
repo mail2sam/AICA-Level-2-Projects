@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyState, Field, PageHeader, StatCard, TableSkeleton } from '@/components/common'
 import { Combobox } from '@/components/combobox'
@@ -58,6 +59,7 @@ interface Draft {
   client_id: string | null
   assigned_to: string | null
   recurrence: Recurrence | null
+  custom_title: string
   notes: string
 }
 
@@ -66,6 +68,7 @@ const EMPTY: Draft = {
   client_id: null,
   assigned_to: null,
   recurrence: null,
+  custom_title: '',
   notes: '',
 }
 
@@ -151,6 +154,7 @@ export default function RecurringPage() {
         client_id: payload.client_id,
         assigned_to: payload.assigned_to,
         recurrence: payload.recurrence,
+        custom_title: payload.custom_title.trim() || null,
         notes: payload.notes.trim() || null,
       }
       if (payload.id) {
@@ -257,6 +261,7 @@ export default function RecurringPage() {
       client_id: row.client_id,
       assigned_to: row.assigned_to,
       recurrence: row.recurrence ?? master?.recurrence ?? null,
+      custom_title: row.custom_title ?? '',
       notes: row.notes ?? '',
     })
     setErrors({})
@@ -444,12 +449,12 @@ export default function RecurringPage() {
                     return (
                       <TableRow key={row.id}>
                         <TableCell className="font-medium">
-                          {master?.name ?? '—'}
-                          {master ? (
-                            <p className="text-muted-foreground text-xs font-normal">
-                              {master.category}
-                            </p>
-                          ) : null}
+                          {row.custom_title?.trim() || master?.name || '—'}
+                          <p className="text-muted-foreground text-xs font-normal">
+                            {row.custom_title?.trim()
+                              ? `${master?.name ?? ''}${master ? ' · ' : ''}${master?.category ?? ''}`
+                              : (master?.category ?? '')}
+                          </p>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {row.client_id ? (clientById.get(row.client_id) ?? '—') : 'Internal'}
@@ -556,6 +561,18 @@ export default function RecurringPage() {
                 </SelectContent>
               </Select>
             </Field>
+            <Field
+              label="Task name on the board (optional)"
+              htmlFor="recurring-title"
+              hint="How each generated task is titled. Blank keeps the master task's name."
+            >
+              <Input
+                id="recurring-title"
+                value={draft.custom_title}
+                onChange={(e) => setDraft({ ...draft, custom_title: e.target.value })}
+                placeholder="e.g. NCPL Daily stock entry"
+              />
+            </Field>
             <Field label="Client" hint="Leave blank for an internal recurring job.">
               <Combobox
                 options={clientOptions}
@@ -574,11 +591,17 @@ export default function RecurringPage() {
                 placeholder="Select an employee"
               />
             </Field>
-            <Field label="Notes" htmlFor="recurring-notes">
-              <Input
+            <Field
+              label="Notes / Checklist"
+              htmlFor="recurring-notes"
+              hint="Copied into every generated task as its description — put the day's checklist here."
+            >
+              <Textarea
                 id="recurring-notes"
+                rows={3}
                 value={draft.notes}
                 onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                placeholder={'e.g.\nRM stock in / out\nFG stock in / out'}
               />
             </Field>
             <DialogFooter>

@@ -54,6 +54,12 @@ export function friendlyError(error: unknown): string {
   if (message.includes('duplicate key') && message.includes('task_master')) {
     return 'A task with this name already exists in that category.'
   }
+  if (message.includes('duplicate key') && message.includes('compliance_master')) {
+    return 'A compliance rule with this code already exists. Change the code.'
+  }
+  if (message.includes('duplicate key') && message.includes('recurring')) {
+    return 'A repeating schedule for this job and client already exists — edit it on the Recurring screen instead.'
+  }
   if (message.includes('row-level security')) {
     return 'You do not have permission to do that.'
   }
